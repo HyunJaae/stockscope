@@ -49,3 +49,6 @@ logs/
 
 ### H2 Database ###
 *.db
+
+### Notes ###
+notes/

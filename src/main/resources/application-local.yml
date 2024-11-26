@@ -1,0 +1,10 @@
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+  
+  datasource:
+    url: jdbc:postgresql://localhost:5432/stockscope
+    username: ${POSTGRES_USERNAME}
+    password: ${POSTGRES_PASSWORD}

@@ -1,0 +1,157 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - "main"
+      - "release/**"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+      
+      - name: Build and Test
+        env:
+          SPRING_PROFILES_ACTIVE: test
+        run: ./gradlew clean build
+
+      # 빌드 결과물 저장
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: build/
+          retention-days: 1 # 아티팩트 보관 기간 설정
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 빌드 결과물 다운로드
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+          path: build/
+
+      # 파일 위치 확인 (디버깅용)
+      - name: List files
+        run: ls -R build/
+      
+      # 브랜치에 따라 다른 환경에 배포
+      - name: Set environment
+        id: set-env
+        run: |
+          if [[ ${{ github.ref }} == 'refs/heads/main' ]]; then
+            echo "ENV=prod" >> $GITHUB_OUTPUT
+          else
+            echo "ENV=stage" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Docker Buildx 설정 추가
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      # Docker 이미지 빌드 및 푸시
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          # 브랜치별로 다른 태그 사용
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/stockscope:${{ steps.set-env.outputs.ENV }}
+          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/stockscope:${{ steps.set-env.outputs.ENV }}
+          cache-to: type=inline
+
+      # Github Actions에서 공개 IP 가져오기
+      - name: Get Public IP
+        id: ip
+        uses: haythem/public-ip@v1.3
+
+      # AWS CLI 설정
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      # 보안그룹 규칙 추가
+      - name: Add security group rule
+        run: |
+          RULE_ID=$(aws ec2 authorize-security-group-ingress \
+            --group-id ${{ secrets.EC2_SECURITY_GROUP_ID }} \
+            --protocol tcp \
+            --port 22 \
+            --cidr ${{ steps.ip.outputs.ipv4 }}/32 \
+            --query 'SecurityGroupRules[0].SecurityGroupRuleId' \
+            --output text)
+          echo "RULE_ID=${RULE_ID}" >> $GITHUB_ENV
+      
+      # 배포 진행
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ steps.set-env.outputs.ENV == 'prod' && secrets.PROD_EC2_HOST || secrets.STAGE_EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            # Docker Compose 설치 (없는 경우에만)
+            if ! command -v docker-compose &> /dev/null; then
+              sudo curl -L "https://github.com/docker/compose/releases/download/v2.30.3/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+              sudo chmod +x /usr/local/bin/docker-compose
+            fi
+
+            mkdir -p ~/stockscope
+            cd ~/stockscope
+
+            # 기존 컨테이너 상태 확인 및 정리
+            if [ -f docker-compose.yml ]; then
+              docker-compose down
+            fi
+            
+            # 기존 docker-compose.yml 백업 (선택사항)
+            [ -f docker-compose.yml ] && mv docker-compose.yml docker-compose.yml.bak
+
+            # 현재 브랜치명 추출
+            BRANCH_NAME="${{ github.ref_name }}"
+            
+            # 프로젝트의 docker-compose.yml 다운로드
+            wget https://raw.githubusercontent.com/HyunJaae/stockscope/${BRANCH_NAME}/docker-compose.yml
+            
+            # .env 파일 생성/업데이트
+            cat > .env << EOL
+            DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}
+            ENV=${{ steps.set-env.outputs.ENV }}
+            DB_NAME=${{ secrets.DB_NAME }}
+            DB_USERNAME=${{ secrets.DB_USERNAME }}
+            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+            EOL
+            
+            # 컨테이너 실행
+            docker-compose pull
+            docker-compose up -d
+
+      # 보안그룹 규칙 제거 (항상 실행)
+      - name: Remove security group rule
+        if: always()
+        run: |
+          aws ec2 revoke-security-group-ingress \
+            --group-id ${{ secrets.EC2_SECURITY_GROUP_ID }} \
+            --security-group-rule-ids ${RULE_ID}

@@ -17,13 +17,19 @@ spring:
     console:
       enabled: true
       path: /h2-console
+      settings:
+        web-allow-others: false
 
-  # 테스트 환경에서는 Redis 사용하지 않음
   data:
     redis:
       enabled: false
+
+  sql:
+    init:
+      mode: never  # 테스트용 SQL 스크립트 자동 실행 방지
 
 logging:
   level:
     me.hyeonjae.stockscope: DEBUG
     org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE

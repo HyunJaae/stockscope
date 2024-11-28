@@ -1,4 +1,4 @@
-package me.hyeonjae.stockscope.api;
+package me.hyeonjae.stockscope.adapter.in.web;
 
 import static org.springframework.restdocs.mockmvc.MockMvcRestDocumentation.document;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;

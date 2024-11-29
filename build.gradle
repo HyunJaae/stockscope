@@ -99,7 +99,7 @@ jacocoTestCoverageVerification {
             }
             excludes = [
                     '*.Q*',
-                    '*.Application',
+                    '*.StockscopeApplication',
                     '*.config.*',
                     '*.exception.*'
             ]

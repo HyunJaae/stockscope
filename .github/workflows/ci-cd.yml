@@ -23,10 +23,11 @@ jobs:
 
       # 빌드 결과물 저장
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: build-artifacts
           path: build/
+          retention-days: 1 # 아티팩트 보관 기간 설정
 
   deploy:
     needs: build
@@ -36,7 +37,7 @@ jobs:
 
       # 빌드 결과물 다운로드
       - name: Download build artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: build-artifacts
           path: build/

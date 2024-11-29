@@ -8,15 +8,7 @@ on:
     types:
       - completed
     branches:
-      - "main"
-      - "develop"
-      - "feature/*"
-      - "release/*"
-  pull_request:
-    branches:
-      - "main"
-      - "develop"
-      - "release/*"
+      - "feature/github-actions-test"
     
 # 워크플로우 작업 설정
 jobs:

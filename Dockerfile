@@ -1,10 +1,8 @@
 # Build stage
 FROM gradle:8.5-jdk21-alpine AS build
 WORKDIR /app
-COPY . .
-RUN gradle build -x test
 
-# 의존성 레이어
+# 의존성 레이어 - 캐시 활용을 위해 먼저 복사
 COPY build.gradle settings.gradle ./
 COPY gradle gradle
 COPY gradlew .

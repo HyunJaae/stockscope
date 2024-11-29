@@ -5,15 +5,11 @@ name: Java CI with Gradle
 on:
   push:
     branches:
-      - "main"
       - "develop"
       - "feature/*"
-      - "release/*"
   pull_request:
     branches:
-      - "main"
       - "develop"
-      - "release/*"
 
 # 3. 권한 설정
 permissions:

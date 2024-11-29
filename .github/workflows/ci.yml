@@ -4,9 +4,9 @@ name: Java CI with Gradle
 # 2. 워크플로우 트리거 설정
 on:
   push:
-    branches: [ "*" ]  # 모든 브랜치에 대해 동작
+    branches: [ "feature/github-actions-test" ]
   pull_request:
-    branches: [ "*" ]  # 모든 브랜치에 대해 동작
+    branches: [ "main" ]
 
 # 3. 권한 설정
 permissions:

@@ -3,7 +3,10 @@ name: Java CD with Docker
 
 # 워크플로우 트리거 설정
 on:
-  push:
+  workflow_run:
+    workflows: ["Java CI with Gradle"]
+    types:
+      - completed
     branches:
       - "main"
       - "develop"
@@ -18,6 +21,7 @@ on:
 # 워크플로우 작업 설정
 jobs:
   deploy:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest # ubuntu 최신 버전에서 실행
     
     steps:
@@ -33,7 +37,7 @@ jobs:
       uses: gradle/gradle-build-action@v2
       
     - name: Build with Gradle # Gradle로 빌드
-      run: ./gradlew clean build -x test
+      run: ./gradlew clean build
       
     - name: Login to Docker Hub # Docker Hub 로그인
       uses: docker/login-action@v3

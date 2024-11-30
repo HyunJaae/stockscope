@@ -75,11 +75,36 @@ jobs:
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/stockscope:${{ steps.set-env.outputs.ENV }}
           cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/stockscope:${{ steps.set-env.outputs.ENV }}
           cache-to: type=inline
+
+      # Github Actions에서 공개 IP 가져오기
+      - name: Get Public IP
+        id: ip
+        uses: haythem/public-ip@v1.3
+
+      # AWS CLI 설정
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      # 보안그룹 규칙 추가
+      - name: Add security group rule
+        run: |
+          RULE_ID=$(aws ec2 authorize-security-group-ingress \
+            --group-id ${{ secrets.EC2_SECURITY_GROUP_ID }} \
+            --protocol tcp \
+            --port 22 \
+            --cidr ${{ steps.ip.outputs.ipv4 }}/32 \
+            --query 'SecurityGroupRules[0].SecurityGroupRuleId' \
+            --output text)
+          echo "RULE_ID=${RULE_ID}" >> $GITHUB_ENV
       
+      # 배포 진행
       - name: Deploy to EC2
         uses: appleboy/ssh-action@master
         with:
-          # 브랜치별로 다른 EC2 인스턴스 사용
           host: ${{ steps.set-env.outputs.ENV == 'prod' && secrets.PROD_EC2_HOST || secrets.STAGE_EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
@@ -90,5 +115,13 @@ jobs:
             docker run -d --name stockscope \
               -p 8080:8080 \
               -e SPRING_PROFILES_ACTIVE=${{ steps.set-env.outputs.ENV }} \
-              --restart unless-stopped \  # 컨테이너 자동 재시작 설정
+              --restart unless-stopped \
               ${{ secrets.DOCKERHUB_USERNAME }}/stockscope:${{ steps.set-env.outputs.ENV }}
+
+      # 보안그룹 규칙 제거 (항상 실행)
+      - name: Remove security group rule
+        if: always()
+        run: |
+          aws ec2 revoke-security-group-ingress \
+            --group-id ${{ secrets.EC2_SECURITY_GROUP_ID }} \
+            --security-group-rule-ids ${RULE_ID}

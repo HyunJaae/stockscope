@@ -111,10 +111,6 @@ test {
 	useJUnitPlatform()
 	outputs.dir snippetsDir
 	finalizedBy 'jacocoTestReport'
-	testLogging {
-        events "passed", "skipped", "failed"
-        showStandardStreams = true
-    }
 }
 
 asciidoctor {

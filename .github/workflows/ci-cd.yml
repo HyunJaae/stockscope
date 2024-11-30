@@ -66,6 +66,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       
+      # Docker 이미지 빌드 및 푸시
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
@@ -109,14 +110,30 @@ jobs:
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/stockscope:${{ steps.set-env.outputs.ENV }}
-            docker stop stockscope || true
-            docker rm stockscope || true
-            docker run -d --name stockscope \
-              -p 8080:8080 \
-              -e SPRING_PROFILES_ACTIVE=${{ steps.set-env.outputs.ENV }} \
-              --restart unless-stopped \
-              ${{ secrets.DOCKERHUB_USERNAME }}/stockscope:${{ steps.set-env.outputs.ENV }}
+            mkdir -p ~/stockscope
+            cd ~/stockscope
+            
+            # 기존 docker-compose.yml 백업 (선택사항)
+            [ -f docker-compose.yml ] && mv docker-compose.yml docker-compose.yml.bak
+
+            # 현재 브랜치명 추출
+            BRANCH_NAME="${{ github.ref_name }}"
+            
+            # 프로젝트의 docker-compose.yml 다운로드
+            wget https://raw.githubusercontent.com/HyunJaae/stockscope/${BRANCH_NAME}/docker-compose.yml
+            
+            # .env 파일 생성/업데이트
+            cat > .env << EOL
+            DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}
+            ENV=${{ steps.set-env.outputs.ENV }}
+            DB_NAME=${{ secrets.DB_NAME }}
+            DB_USERNAME=${{ secrets.DB_USERNAME }}
+            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+            EOL
+            
+            # 컨테이너 실행
+            docker-compose pull
+            docker-compose up -d
 
       # 보안그룹 규칙 제거 (항상 실행)
       - name: Remove security group rule

@@ -3,7 +3,7 @@ spring:
     name: stockscope
     
   profiles:
-    active: local
+    active: test
   
   jpa:
     properties:

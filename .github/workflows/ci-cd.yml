@@ -120,6 +120,11 @@ jobs:
 
             mkdir -p ~/stockscope
             cd ~/stockscope
+
+            # 기존 컨테이너 상태 확인 및 정리
+            if [ -f docker-compose.yml ]; then
+              docker-compose down
+            fi
             
             # 기존 docker-compose.yml 백업 (선택사항)
             [ -f docker-compose.yml ] && mv docker-compose.yml docker-compose.yml.bak
